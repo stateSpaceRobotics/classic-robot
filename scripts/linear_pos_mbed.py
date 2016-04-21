@@ -17,15 +17,16 @@ def callback(msg):
     global t
     rospy.loginfo("Received a /float message!")
     t = msg
- 
+
 # handler called when a report is received
 def rx_handler(data):
-    print 'recv: ', data        
- 
+    print 'recv: ', data
+
 def findHIDDevice(mbed_vendor_id, mbed_product_id):
     global t
-    rospy.init_node('linear_pos_listener')
+    rospy.init_node('linear_pos_listener', anonymous=True)
     rospy.Subscriber("/linear_pos", float, callback)
+    rospy.Publisher("/linear_actuator", int, queue_size=10)
     # Find device
     hid_device = usb.core.find(idVendor=mbed_vendor_id,idProduct=mbed_product_id)
     while not rospy.is_shutdown():
@@ -44,22 +45,27 @@ def findHIDDevice(mbed_vendor_id, mbed_product_id):
                 hid_device.reset()
             except usb.core.USBError as e:
                 sys.exit("Could not set configuration: %s" % str(e))
-        
-            endpoint = hid_device[0][(0,0)][0]      
-        
+
+            endpoint = hid_device[0][(0,0)][0]
+
             while True:
                 data = "%.2f"%(t)
-                        
+
                 #read the data
-                bytes = hid_device.read(endpoint.bEndpointAddress, 8)
-                rx_handler(bytes)
- 
+                rbytes = hid_device.read(endpoint.bEndpointAddress, 8)
+                rx_handler(rbytes)
+                num = 0
+                for i in rbytes:
+                    num += i*10**(8-i)
+                rospy.loginfo(num)
+                pub.publish(num)
+
                 hid_device.write(1, data)
- 
+
 if __name__ == '__main__':
     # The vendor ID and product ID used in the Mbed program
-    mbed_vendor_id = 0x1234 
+    mbed_vendor_id = 0x1234
     mbed_product_id = 0x0006
- 
+
     # Search the Mbed, attach rx handler and send data
     findHIDDevice(mbed_vendor_id, mbed_product_id)
